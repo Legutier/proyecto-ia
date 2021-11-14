@@ -3,7 +3,24 @@
 
 using namespace std;
 
-int main () {
+
+vector<int> BackTrackingAlogirthm(int **domains, float **separation_matrix, vector<int> domains_size) {
+    /*
+        Recibe una matriz de dominio y una de la separacion minima entre los aviones.
+        Las filas representan los valores del avion i
+        En el caso de los dominios, las columnas son los dominios
+        En el caso de la matrix de separacion las columnas es que tan separado debe estar de
+        el avion j(columna).
+
+        Realiza back tracking para resolver el problema ALSP.
+    */
+    int plane_pointer = 0;
+    vector<int> solution;
+
+    return solution;
+}
+
+int main() {
     // Leer todo
     int planes_qty;
     cin >> planes_qty;
@@ -29,6 +46,17 @@ int main () {
             cout << planes_separation_matrix[i][j] << " ";
         cout << "\n";
     }
+    vector<int> planes_domain_len(planes_qty);
+    int ** planes_domain = new int*[planes_qty];
+    for(int i = 0; i < planes_qty; i++) {
+        planes_domain_len[i] = planes_latest_t[i] - planes_earliest_t[i] + 1;
+        planes_domain[i] = new int[planes_domain_len[i]];
+        for(int j = 0; j < planes_domain_len[i]; i++)
+            planes_domain[i][j] = planes_earliest_t[i] + j;
+    }
+    // algoritmo
+    BackTrackingAlogirthm(planes_domain, planes_separation_matrix, planes_domain_len);
+    // limpiar heap
     for (int i = 0; i < planes_qty; i++)
         delete [] planes_separation_matrix[i];
     delete [] planes_separation_matrix;
