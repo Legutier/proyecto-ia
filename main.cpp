@@ -2,9 +2,29 @@
 #include <vector>
 
 using namespace std;
+static vector<int> DEFAULT_VECTOR;
+
+struct ALSP_representation {
+    float **planes_separation_matrix;
+    int **planes_domain;
+    vector<int> domains_size;
+    int planes_qty;
+};
+
+bool reject(ALSP_representation ALSP, vector <int> evaluating_solution) {
+    return true;
+}
 
 
-vector<int> BackTrackingAlogirthm(int **domains, float **separation_matrix, vector<int> domains_size) {
+bool accept(ALSP_representation ALSP, vector<int> evaluating_solution) {
+    return true;
+}
+
+int get(ALSP_representation ALSP, vector<int> evaluating_solution, int variable_pointer) {
+    return -1;
+}
+
+vector<int> solve(ALSP_representation ALSP, vector<vector<int>> solutions, vector<int> evaluating_solution = DEFAULT_VECTOR, int variable_pointer = 0) {
     /*
         Recibe una matriz de dominio y una de la separacion minima entre los aviones.
         Las filas representan los valores del avion i
@@ -14,10 +34,17 @@ vector<int> BackTrackingAlogirthm(int **domains, float **separation_matrix, vect
 
         Realiza back tracking para resolver el problema ALSP.
     */
-    int plane_pointer = 0;
-    vector<int> solution;
-
-    return solution;
+    if (reject(ALSP, evaluating_solution)) return vector<int>(ALSP.planes_qty);
+    if (accept(ALSP, evaluating_solution)) {
+        solutions.push_back(evaluating_solution);
+        evaluating_solution.clear();
+    }
+    int s = 0;
+    while (s != -1) {
+        solve(ALSP, solutions, evaluating_solution, 0);
+        s = get(ALSP, evaluating_solution, s);
+    }
+    return DEFAULT_VECTOR;
 }
 
 int main() {
@@ -54,8 +81,14 @@ int main() {
         for(int j = 0; j < planes_domain_len[i]; i++)
             planes_domain[i][j] = planes_earliest_t[i] + j;
     }
+    ALSP_representation ALSP;
+    ALSP.planes_qty = planes_qty;
+    ALSP.planes_separation_matrix = planes_separation_matrix;
+    ALSP.planes_domain = planes_domain;
+    ALSP.domains_size = planes_domain_len;
+    vector<vector<int>> solutions;
     // algoritmo
-    BackTrackingAlogirthm(planes_domain, planes_separation_matrix, planes_domain_len);
+    solve(ALSP,solutions);
     // limpiar heap
     for (int i = 0; i < planes_qty; i++)
         delete [] planes_separation_matrix[i];
