@@ -11,20 +11,52 @@ struct ALSP_representation {
     int planes_qty;
 };
 
-bool reject(ALSP_representation ALSP, vector <int> evaluating_solution) {
-    return true;
+struct PlaneCandidate {
+    int plane;
+    int time;
 }
 
 
 bool accept(ALSP_representation ALSP, vector<int> evaluating_solution) {
-    return true;
+    if (evaluating_solution.size() == ALSP.planes_qty) return true;
+    else return false;
 }
 
-int get(ALSP_representation ALSP, vector<int> evaluating_solution, int variable_pointer) {
-    return -1;
+int JumpBack(ALSP_representation ALSP, vector<int> evaluating_solution) {
+    evaluating_solution.size() 
 }
 
-vector<int> solve(ALSP_representation ALSP, vector<vector<int>> solutions, vector<int> evaluating_solution = DEFAULT_VECTOR, int variable_pointer = 0) {
+bool ComparePlanesTime(PlaneCandidate p1, PlaneCandidate p2) {
+    return (p1.time < p2.time);
+}
+
+int NextInstance(ALSP_representation ALSP, vector<int> evaluating_solution, int domain_pointer) {
+    variable_pointer = evaluating_solution.size();
+    if (evaluating_solution.size() < ALSP.planes_qty) {
+        // añadimos avion
+        PlaneCandidate new_plane{variable_pointer, ALSP.planes_domain[variable_pointer][domain_pointer]};
+        evaluating_solution.push_back(new_plane);
+        sort(evaluating_solution.begin(), evaluating_solution.end(), ComparePlanesTime);
+        int breaking_point = -1;
+        // chequeo de restricciones
+        for(int i = 1; i <= variable_pointer; i++) {
+            before = evaluating_solution[i-1];
+            after = evaluating_solution[i];
+            if (after.time before.time > ALSP.planes_separation_matrix[before.plane][after.plane]) {
+                breaking_point = i;
+                break;
+            }
+        }
+        // si hay restricciones vamos para atras
+        if (breaking_point != -1) {
+            evaluating_solution.erase(evaluating_solution.begin() + breaking_point);
+            return JumpBack();
+        }
+    }
+    return domain_pointer;
+}
+
+vector<vector<int>> Solve(ALSP_representation ALSP, vector<vector<int>> solutions) {
     /*
         Recibe una matriz de dominio y una de la separacion minima entre los aviones.
         Las filas representan los valores del avion i
@@ -34,15 +66,14 @@ vector<int> solve(ALSP_representation ALSP, vector<vector<int>> solutions, vecto
 
         Realiza back tracking para resolver el problema ALSP.
     */
-    if (reject(ALSP, evaluating_solution)) return vector<int>(ALSP.planes_qty);
-    if (accept(ALSP, evaluating_solution)) {
-        solutions.push_back(evaluating_solution);
-        evaluating_solution.clear();
-    }
-    int s = 0;
-    while (s != -1) {
-        solve(ALSP, solutions, evaluating_solution, 0);
-        s = get(ALSP, evaluating_solution, s);
+    vector<PlaneCandidate> evaluating_solution;
+    int s = nextInstance(ALSP, solutions, evaluating_solution, 0);
+    while s != -1 {    
+        if (reject(ALSP, evaluating_solution)) s = JumpBack();
+        else {
+            if (accept(ALSP, evaluating_solution)) solutions.push_back(evaluating_solution);
+            s = nextInstance(ALSP, solutions, evaluating_solution, s);
+        }
     }
     return DEFAULT_VECTOR;
 }
@@ -88,7 +119,7 @@ int main() {
     ALSP.domains_size = planes_domain_len;
     vector<vector<int>> solutions;
     // algoritmo
-    solve(ALSP,solutions);
+    Solve(ALSP,solutions);
     // limpiar heap
     for (int i = 0; i < planes_qty; i++)
         delete [] planes_separation_matrix[i];
