@@ -69,11 +69,8 @@ vector<vector<int>> Solve(ALSP_representation ALSP, vector<vector<int>> solution
     vector<PlaneCandidate> evaluating_solution;
     int s = nextInstance(ALSP, solutions, evaluating_solution, 0);
     while s != -1 {    
-        if (reject(ALSP, evaluating_solution)) s = JumpBack();
-        else {
-            if (accept(ALSP, evaluating_solution)) solutions.push_back(evaluating_solution);
-            s = nextInstance(ALSP, solutions, evaluating_solution, s);
-        }
+        if (accept(ALSP, evaluating_solution)) solutions.push_back(evaluating_solution);
+        s = nextInstance(ALSP, solutions, evaluating_solution, s);
     }
     return DEFAULT_VECTOR;
 }
