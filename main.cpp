@@ -49,6 +49,9 @@ vector<vector<PlaneCandidate> > Solve(ALSP_representation ALSP) {
     vector<vector<PlaneCandidate> > solutions;
     vector<PlaneCandidate> evaluating_solution;
     int domain_pointer = 0;
+    int saltos = 0;
+    set<int> conflicts;
+
     while (domain_pointer != -1) {
         if (accept(ALSP, evaluating_solution)) solutions.push_back(evaluating_solution);
         int variable_pointer = evaluating_solution.size();
@@ -63,8 +66,21 @@ vector<vector<PlaneCandidate> > Solve(ALSP_representation ALSP) {
                 PlaneCandidate before = evaluating_solution[i-1];
                 PlaneCandidate after = evaluating_solution[i];
                 if (after.time - before.time < ALSP.planes_separation_matrix[before.plane][after.plane]) {
-                    if (before.plane > after.plane) breaking_point =  i - 1;
-                    else breaking_point = i;
+                    if (before.plane > after.plane){
+                        breaking_point =  i - 1;
+                        conflicts.insert(after.plane);
+                    }
+                    else {
+                        breaking_point = i;
+                        conflicts.insert(before.plane);
+                    }
+                    cout << "conflictoo ";
+                    set<int, greater<int> >::iterator itr;
+                    for (itr = conflicts.begin(); itr != conflicts.end(); itr++)
+                    {
+                        cout << *itr<<" ";
+                    }
+                    cout << "\n";
                     break;
                 }
             }
@@ -75,18 +91,34 @@ vector<vector<PlaneCandidate> > Solve(ALSP_representation ALSP) {
                 domain_pointer++;
             }
             else {
-              domain_pointer = 0;
+                cout << "limpiando\n";
+                conflicts.clear();
+                domain_pointer = 0;
             }
         }
         else {
-          // si no tenemos opciones volvemos atras
-          if (evaluating_solution.size() == 0){
-              break;
-          }
-          sort(evaluating_solution.begin(), evaluating_solution.end(), ComparePlanes);
-          PlaneCandidate last_plane = evaluating_solution.back();
-          domain_pointer = last_plane.domain_pointer + 1;
-          evaluating_solution.pop_back();
+            // si no tenemos opciones volvemos atras
+            if (evaluating_solution.size() == 0){
+                break;
+            }
+            sort(evaluating_solution.begin(), evaluating_solution.end(), ComparePlanes);
+            saltos++;
+            if(!conflicts.empty() && true) {
+                int premature_conflict = *conflicts.rbegin();
+                conflicts.clear();
+                int erases = evaluating_solution.size() - premature_conflict;
+                cout << "borrados " << erases << " conflicto " << premature_conflict << " otro " << *conflicts.begin() << "\n";
+                for(int i = 0; i < erases; i++) {
+                    PlaneCandidate last_plane = evaluating_solution.back();
+                    domain_pointer = last_plane.domain_pointer + 1;
+                    evaluating_solution.pop_back();
+                }
+            }
+            else {
+                    PlaneCandidate last_plane = evaluating_solution.back();
+                    domain_pointer = last_plane.domain_pointer + 1;
+                    evaluating_solution.pop_back();
+            }
         }
         cout << "Estado actual\n";
         for (int i = 0; i < evaluating_solution.size(); i++) cout << evaluating_solution[i].plane << " ";
@@ -94,6 +126,7 @@ vector<vector<PlaneCandidate> > Solve(ALSP_representation ALSP) {
         for (int i = 0; i < evaluating_solution.size(); i++) cout << evaluating_solution[i].time << " ";
         cout << "\n";
     }
+    cout << "Saltos = " << saltos << "\n";
     return solutions;
 }
 
