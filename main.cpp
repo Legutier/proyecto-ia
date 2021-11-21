@@ -53,7 +53,15 @@ vector<vector<PlaneCandidate> > Solve(ALSP_representation ALSP) {
     set<int> conflicts;
 
     while (domain_pointer != -1) {
-        if (accept(ALSP, evaluating_solution)) solutions.push_back(evaluating_solution);
+        if (accept(ALSP, evaluating_solution)) {
+            solutions.push_back(evaluating_solution);
+            cout << "encontré solución \n";
+            for (int i = 0; i < evaluating_solution.size(); i++) cout << evaluating_solution[i].plane << " ";
+            cout << "\n";
+            for (int i = 0; i < evaluating_solution.size(); i++) cout << evaluating_solution[i].time << " ";
+            cout << "\n";
+            cout << "Soluciones " << solutions.size() << " Saltos " << saltos << "\n";
+        }
         int variable_pointer = evaluating_solution.size();
         if (evaluating_solution.size() < ALSP.planes_qty && domain_pointer < ALSP.domains_size[variable_pointer]) {
             // si no, instanciamos
@@ -74,14 +82,6 @@ vector<vector<PlaneCandidate> > Solve(ALSP_representation ALSP) {
                         breaking_point = i;
                         conflicts.insert(before.plane);
                     }
-                    cout << "conflictoo ";
-                    set<int, greater<int> >::iterator itr;
-                    for (itr = conflicts.begin(); itr != conflicts.end(); itr++)
-                    {
-                        cout << *itr<<" ";
-                    }
-                    cout << "\n";
-                    break;
                 }
             }
             // si hay restriccion sacamos la variable para escoger la siguiente
@@ -101,8 +101,11 @@ vector<vector<PlaneCandidate> > Solve(ALSP_representation ALSP) {
             if (evaluating_solution.size() == 0){
                 break;
             }
+            // reordenamos al nivel de instanciacion
             sort(evaluating_solution.begin(), evaluating_solution.end(), ComparePlanes);
             saltos++;
+            // si hay conflictos hacemos CBJ, sacamos la instancia de conflicto
+            // mas reciente y borramos
             if(!conflicts.empty() && true) {
                 int premature_conflict = *conflicts.rbegin();
                 conflicts.clear();
@@ -120,11 +123,13 @@ vector<vector<PlaneCandidate> > Solve(ALSP_representation ALSP) {
                     evaluating_solution.pop_back();
             }
         }
-        cout << "Estado actual\n";
-        for (int i = 0; i < evaluating_solution.size(); i++) cout << evaluating_solution[i].plane << " ";
-        cout << "\n";
-        for (int i = 0; i < evaluating_solution.size(); i++) cout << evaluating_solution[i].time << " ";
-        cout << "\n";
+        if(false) {
+            cout << "Estado actual\n";
+            for (int i = 0; i < evaluating_solution.size(); i++) cout << evaluating_solution[i].plane << " ";
+            cout << "\n";
+            for (int i = 0; i < evaluating_solution.size(); i++) cout << evaluating_solution[i].time << " ";
+            cout << "\n";
+        }
     }
     cout << "Saltos = " << saltos << "\n";
     return solutions;
