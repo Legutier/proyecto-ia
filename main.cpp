@@ -3,13 +3,17 @@
 #include <tuple>
 #include <algorithm>
 #include <set>
+#include <limits>
 
 using namespace std;
 
 struct ALSP_representation {
     float **planes_separation_matrix;
-    int **planes_domain;
-    vector<int> domains_size;
+    vector<int> planes_earliest_t;
+    vector<int> planes_ideal_t;
+    vector<int> planes_latest_t;
+    vector<float> planes_early_penalty;
+    vector<float> planes_late_penalty;
     int planes_qty;
 };
 
@@ -21,9 +25,17 @@ struct PlaneCandidate {
 
 static vector< vector<PlaneCandidate> > DEFAULT_VECTOR;
 
-bool accept(ALSP_representation ALSP, vector<PlaneCandidate> evaluating_solution) {
-    if (evaluating_solution.size() == ALSP.planes_qty) return true;
-    else return false;
+int accept(ALSP_representation ALSP, vector<PlaneCandidate> evaluating_solution, int best_solution_val) {
+    int candidate_cost = 0;
+    if (evaluating_solution.size() == ALSP.planes_qty) {
+        for (int i = 0; i < evaluating_solution.size(); i++)  {
+            int arrival_time = evaluating_solution[i].time - ALSP.planes_ideal_t[evaluating_solution[i].plane];
+            if (arrival_time < 0) candidate_cost += -arrival_time * ALSP.planes_early_penalty[evaluating_solution[i].plane];
+            else if(arrival_time > 0) candidate_cost += arrival_time * ALSP.planes_late_penalty[evaluating_solution[i].plane];
+        }
+        if (candidate_cost < best_solution_val) return candidate_cost;
+    }
+    return -1;
 }
 
 bool ComparePlanesTime(PlaneCandidate p1, PlaneCandidate p2) {
@@ -36,7 +48,7 @@ bool ComparePlanes(PlaneCandidate p1, PlaneCandidate p2) {
 }
 
 
-vector<vector<PlaneCandidate> > Solve(ALSP_representation ALSP) {
+vector<PlaneCandidate> Solve(ALSP_representation ALSP) {
     /*
         Recibe una matriz de dominio y una de la separacion minima entre los aviones.
         Las filas representan los valores del avion i
@@ -46,26 +58,47 @@ vector<vector<PlaneCandidate> > Solve(ALSP_representation ALSP) {
 
         Realiza back tracking para resolver el problema ALSP.
     */
-    vector<vector<PlaneCandidate> > solutions;
+    vector<PlaneCandidate> solution;
+    int best_solution_val = numeric_limits<int>::max();
     vector<PlaneCandidate> evaluating_solution;
     int domain_pointer = 0;
     int saltos = 0;
+    int s;
     set<int> conflicts;
 
-    while (domain_pointer != -1) {
-        if (accept(ALSP, evaluating_solution)) {
-            solutions.push_back(evaluating_solution);
+    while (domain_pointer != -1)
+            {
+                if (saltos > 1 && saltos % 1000000 == 0) {
+                    cout <<  "Saltos " << saltos << "\n";
+                    int candidate_cost = 0;
+                    for (int i = 0; i < evaluating_solution.size(); i++)  {
+                        int arrival_time = evaluating_solution[i].time - ALSP.planes_ideal_t[evaluating_solution[i].plane];
+                        if (arrival_time < 0) candidate_cost += -arrival_time * ALSP.planes_early_penalty[evaluating_solution[i].plane];
+                        else if(arrival_time > 0) candidate_cost += arrival_time * ALSP.planes_late_penalty[evaluating_solution[i].plane];
+                    }
+                    cout << "Valor candidato " << candidate_cost;
+                    for (int i = 0; i < evaluating_solution.size(); i++) cout << evaluating_solution[i].plane << " ";
+                    cout << "\n";
+                    for (int i = 0; i < evaluating_solution.size(); i++) cout << evaluating_solution[i].time << " ";
+                    cout << "\n";
+
+            }
+        s = accept(ALSP, evaluating_solution, best_solution_val);
+        if (s != -1) {
+            best_solution_val = s;
+            solution = evaluating_solution;
             cout << "encontré solución \n";
             for (int i = 0; i < evaluating_solution.size(); i++) cout << evaluating_solution[i].plane << " ";
             cout << "\n";
             for (int i = 0; i < evaluating_solution.size(); i++) cout << evaluating_solution[i].time << " ";
             cout << "\n";
-            cout << "Soluciones " << solutions.size() << " Saltos " << saltos << "\n";
+            cout << "Valor mejor sol actual " << best_solution_val << " Saltos " << saltos << "\n";
         }
         int variable_pointer = evaluating_solution.size();
-        if (evaluating_solution.size() < ALSP.planes_qty && domain_pointer < ALSP.domains_size[variable_pointer]) {
+        int domain_value = ALSP.planes_earliest_t[variable_pointer] + domain_pointer;
+        if (evaluating_solution.size() < ALSP.planes_qty && domain_value <= ALSP.planes_latest_t[variable_pointer]) {
             // si no, instanciamos
-            PlaneCandidate new_plane = {variable_pointer, ALSP.planes_domain[variable_pointer][domain_pointer], domain_pointer};
+            PlaneCandidate new_plane = {variable_pointer, domain_value, domain_pointer};
             evaluating_solution.push_back(new_plane);
             sort(evaluating_solution.begin(), evaluating_solution.end(), ComparePlanesTime);
             int breaking_point = -1;
@@ -91,7 +124,6 @@ vector<vector<PlaneCandidate> > Solve(ALSP_representation ALSP) {
                 domain_pointer++;
             }
             else {
-                cout << "limpiando\n";
                 conflicts.clear();
                 domain_pointer = 0;
             }
@@ -132,8 +164,9 @@ vector<vector<PlaneCandidate> > Solve(ALSP_representation ALSP) {
         }
     }
     cout << "Saltos = " << saltos << "\n";
-    return solutions;
+    return solution;
 }
+
 
 int main() {
     // Leer todo
@@ -161,30 +194,24 @@ int main() {
             cout << planes_separation_matrix[i][j] << " ";
         cout << "\n";
     }
-    vector<int> planes_domain_len(planes_qty);
-    int ** planes_domain = new int*[planes_qty];
-    for(int i = 0; i < planes_qty; i++) {
-        planes_domain_len[i] = planes_latest_t[i] - planes_earliest_t[i] + 1;
-        planes_domain[i] = new int[planes_domain_len[i]];
-        for(int j = 0; j < planes_domain_len[i]; j++)
-            planes_domain[i][j] = planes_earliest_t[i] + j;
-    }
+
     ALSP_representation ALSP;
     ALSP.planes_qty = planes_qty;
+    ALSP.planes_earliest_t = planes_earliest_t;
+    ALSP.planes_ideal_t = planes_ideal_t;
+    ALSP.planes_latest_t = planes_latest_t;
+    ALSP.planes_early_penalty = planes_early_penalty;
+    ALSP.planes_late_penalty = planes_late_penalty;
     ALSP.planes_separation_matrix = planes_separation_matrix;
-    ALSP.planes_domain = planes_domain;
-    ALSP.domains_size = planes_domain_len;
     cout << ALSP.planes_qty << "\n";
     for(int i = 0; i < ALSP.planes_qty; i++) {
       for(int j = 0; j < ALSP.planes_qty; j ++) cout << ALSP.planes_separation_matrix[i][j] << " ";
       cout << "\n";
     }
     // algoritmo
-    vector< vector<PlaneCandidate> > solutions = Solve(ALSP);
-    for(int i=0; i < solutions.size(); i++) {
-        for(int j=0; j < solutions[i].size(); j++) cout << solutions[i][j].time << ' ';
-        cout << "\n";
-    }
+    vector<PlaneCandidate> solution = Solve(ALSP);
+    for(int j=0; j < solution.size(); j++) cout << solution[j].time << ' ';
+    cout << "\n";
     // limpiar heap
     for (int i = 0; i < planes_qty; i++)
         delete [] planes_separation_matrix[i];
