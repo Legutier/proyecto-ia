@@ -4,10 +4,15 @@
 #include <algorithm>
 #include <set>
 #include <limits>
+#include <fstream>
+#include <string>
+#include <time.h>
+#include <signal.h>
 
 using namespace std;
 
 struct ALSP_representation {
+    string file_name;
     float **planes_separation_matrix;
     vector<int> planes_earliest_t;
     vector<int> planes_ideal_t;
@@ -24,6 +29,15 @@ struct PlaneCandidate {
 };
 
 static vector< vector<PlaneCandidate> > DEFAULT_VECTOR;
+
+clock_t tStart = clock();
+int FINISH_FLAG = 0;
+
+void signal_callback_handler(int signum) {
+   cout << "finalizando... \n" << endl;
+   // Terminate program 
+   FINISH_FLAG = 1;
+}
 
 int accept(ALSP_representation ALSP, vector<PlaneCandidate> evaluating_solution, int best_solution_val) {
     int candidate_cost = 0;
@@ -48,6 +62,27 @@ bool ComparePlanes(PlaneCandidate p1, PlaneCandidate p2) {
 }
 
 
+void Finish(vector<PlaneCandidate> solution, ALSP_representation ALSP, int cost) {
+    string delimiter = ".";
+    cout << ALSP.file_name << "\n";
+    string token = ALSP.file_name.substr(0, ALSP.file_name.find(delimiter));
+    char value = token.back();
+    cout << token << "\n";
+    string solution_name = "solucion_";
+    solution_name.push_back(value);
+    solution_name.append(".txt");
+    ofstream MyFile(solution_name);
+    sort(solution.begin(), solution.end(), ComparePlanes);
+    MyFile << "Costo " << cost << "\n";\
+    MyFile << "Tiempo total de ejecución " << (double)(clock() - tStart)/CLOCKS_PER_SEC << "[s]\n";
+    for(int i = 0; i < solution.size(); i ++) {
+        MyFile << "Tiempo avion " << solution[i].plane << ": " << solution[i].time << "\n";
+    }
+
+    MyFile.close();
+    return;
+}
+
 vector<PlaneCandidate> Solve(ALSP_representation ALSP) {
     /*
         Recibe una matriz de dominio y una de la separacion minima entre los aviones.
@@ -65,9 +100,8 @@ vector<PlaneCandidate> Solve(ALSP_representation ALSP) {
     int saltos = 0;
     int s;
     set<int> conflicts;
-
-    while (domain_pointer != -1)
-            {
+    signal(SIGINT, signal_callback_handler);
+    while (domain_pointer != -1 && FINISH_FLAG == 0) {
                 if (saltos > 1 && saltos % 1000000 == 0) {
                     cout <<  "Saltos " << saltos << "\n";
                     int candidate_cost = 0;
@@ -163,12 +197,13 @@ vector<PlaneCandidate> Solve(ALSP_representation ALSP) {
             cout << "\n";
         }
     }
+    Finish(solution, ALSP, best_solution_val);
     cout << "Saltos = " << saltos << "\n";
     return solution;
 }
 
 
-int main() {
+int main(int argc, char *argv[]) {
     // Leer todo
     int planes_qty;
     cin >> planes_qty;
@@ -203,6 +238,7 @@ int main() {
     ALSP.planes_early_penalty = planes_early_penalty;
     ALSP.planes_late_penalty = planes_late_penalty;
     ALSP.planes_separation_matrix = planes_separation_matrix;
+    ALSP.file_name = argv[1];
     cout << ALSP.planes_qty << "\n";
     for(int i = 0; i < ALSP.planes_qty; i++) {
       for(int j = 0; j < ALSP.planes_qty; j ++) cout << ALSP.planes_separation_matrix[i][j] << " ";
