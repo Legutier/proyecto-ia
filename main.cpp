@@ -8,6 +8,7 @@
 #include <string>
 #include <time.h>
 #include <signal.h>
+#include <cmath>
 
 using namespace std;
 
@@ -99,24 +100,24 @@ vector<PlaneCandidate> Solve(ALSP_representation ALSP) {
     int domain_pointer = 0;
     int saltos = 0;
     int s;
+    vector<bool> touched_optimal(ALSP.planes_qty, false);
     set<int> conflicts;
     signal(SIGINT, signal_callback_handler);
     while (domain_pointer != -1 && FINISH_FLAG == 0) {
-                if (saltos > 1 && saltos % 1000000 == 0) {
-                    cout <<  "Saltos " << saltos << "\n";
-                    int candidate_cost = 0;
-                    for (int i = 0; i < evaluating_solution.size(); i++)  {
-                        int arrival_time = evaluating_solution[i].time - ALSP.planes_ideal_t[evaluating_solution[i].plane];
-                        if (arrival_time < 0) candidate_cost += -arrival_time * ALSP.planes_early_penalty[evaluating_solution[i].plane];
-                        else if(arrival_time > 0) candidate_cost += arrival_time * ALSP.planes_late_penalty[evaluating_solution[i].plane];
-                    }
-                    cout << "Valor candidato " << candidate_cost;
-                    for (int i = 0; i < evaluating_solution.size(); i++) cout << evaluating_solution[i].plane << " ";
-                    cout << "\n";
-                    for (int i = 0; i < evaluating_solution.size(); i++) cout << evaluating_solution[i].time << " ";
-                    cout << "\n";
-
+        if (saltos > 1 && saltos % 1000000 == 0) {
+            cout <<  "Saltos " << saltos << "\n";
+            int candidate_cost = 0;
+            for (int i = 0; i < evaluating_solution.size(); i++)  {
+                int arrival_time = evaluating_solution[i].time - ALSP.planes_ideal_t[evaluating_solution[i].plane];
+                if (arrival_time < 0) candidate_cost += -arrival_time * ALSP.planes_early_penalty[evaluating_solution[i].plane];
+                else if(arrival_time > 0) candidate_cost += arrival_time * ALSP.planes_late_penalty[evaluating_solution[i].plane];
             }
+            cout << "Valor candidato " << candidate_cost << endl;
+            for (int i = 0; i < evaluating_solution.size(); i++) cout << evaluating_solution[i].plane << " ";
+            cout << "\n";
+            for (int i = 0; i < evaluating_solution.size(); i++) cout << evaluating_solution[i].time << " ";
+            cout << "\n";
+        }
         s = accept(ALSP, evaluating_solution, best_solution_val);
         if (s != -1) {
             best_solution_val = s;
@@ -130,45 +131,53 @@ vector<PlaneCandidate> Solve(ALSP_representation ALSP) {
         }
         int variable_pointer = evaluating_solution.size();
         int domain_value = ALSP.planes_earliest_t[variable_pointer] + domain_pointer;
-        if (evaluating_solution.size() < ALSP.planes_qty && domain_value <= ALSP.planes_latest_t[variable_pointer]) {
+        if (
+            evaluating_solution.size() < ALSP.planes_qty
+            && domain_value <= ALSP.planes_latest_t[variable_pointer]
+        ) {
             // si no, instanciamos
             PlaneCandidate new_plane = {variable_pointer, domain_value, domain_pointer};
-            evaluating_solution.push_back(new_plane);
-            sort(evaluating_solution.begin(), evaluating_solution.end(), ComparePlanesTime);
-            int breaking_point = -1;
-            // chequeo de restricciones
-            for(int i = 1; i <= variable_pointer; i++) {
-                PlaneCandidate before = evaluating_solution[i-1];
-                PlaneCandidate after = evaluating_solution[i];
-                if (after.time - before.time < ALSP.planes_separation_matrix[before.plane][after.plane]) {
-                    if (before.plane > after.plane){
-                        breaking_point =  i - 1;
-                        conflicts.insert(after.plane);
-                    }
-                    else {
-                        breaking_point = i;
-                        conflicts.insert(before.plane);
-                    }
+            bool found_conflict = false;
+
+            for (int i = 0; i < evaluating_solution.size(); i++) {
+                float separation_restriction;
+                if (new_plane.time > evaluating_solution[i].time) {
+                    separation_restriction = ALSP.planes_separation_matrix[evaluating_solution[i].plane][new_plane.plane]; 
+                } else {
+                    separation_restriction = ALSP.planes_separation_matrix[new_plane.plane][evaluating_solution[i].plane];
+                }
+                if (abs(new_plane.time - evaluating_solution[i].time) < separation_restriction) {
+                    conflicts.insert(evaluating_solution[i].plane);
+                    found_conflict = true;
+                    domain_pointer++;
+                    break;
                 }
             }
-            // si hay restriccion sacamos la variable para escoger la siguiente
-            if (breaking_point != -1) {
-                evaluating_solution.erase(evaluating_solution.begin() + breaking_point);
-                // vamos a la siguiente variable
-                domain_pointer++;
-            }
-            else {
+            if (!found_conflict) {
+                if (new_plane.time == ALSP.planes_ideal_t[new_plane.plane]) touched_optimal[new_plane.plane] = true;
+                evaluating_solution.push_back(new_plane);
                 conflicts.clear();
                 domain_pointer = 0;
             }
         }
-        else {
+        else {                
+            int jumps = 0;
+            // si tenemos toque optimo
+            if (evaluating_solution.size() == ALSP.planes_qty) {
+                for (unsigned long int i = touched_optimal.size() - 1; i >= 0; i --) {
+                    if (!touched_optimal[i]) {
+                        break;
+                    }
+                    jumps ++; 
+                }
+                fill(touched_optimal.begin(), touched_optimal.end(), false);
+            }
+
             // si no tenemos opciones volvemos atras
             if (evaluating_solution.size() == 0){
                 break;
             }
             // reordenamos al nivel de instanciacion
-            sort(evaluating_solution.begin(), evaluating_solution.end(), ComparePlanes);
             saltos++;
             // si hay conflictos hacemos CBJ, sacamos la instancia de conflicto
             // mas reciente y borramos
@@ -183,7 +192,14 @@ vector<PlaneCandidate> Solve(ALSP_representation ALSP) {
                     evaluating_solution.pop_back();
                 }
             }
-            else {
+            else {  
+                    if (jumps > 0) {
+                        for(int i = 0; i < jumps; i++) {
+                            PlaneCandidate last_plane = evaluating_solution.back();
+                            domain_pointer = last_plane.domain_pointer + 1;
+                            evaluating_solution.pop_back();
+                        }
+                    }
                     PlaneCandidate last_plane = evaluating_solution.back();
                     domain_pointer = last_plane.domain_pointer + 1;
                     evaluating_solution.pop_back();
