@@ -12,6 +12,7 @@
 
 using namespace std;
 
+// abstraccion del problema
 struct ALSP_representation {
     string file_name;
     float **planes_separation_matrix;
@@ -29,19 +30,23 @@ struct PlaneCandidate {
     int domain_pointer;
 };
 
-static vector< vector<PlaneCandidate> > DEFAULT_VECTOR;
-
+// flags que nos ayudan a medir el tiempo de ejecucion y finalizar el programa
 clock_t tStart = clock();
 int FINISH_FLAG = 0;
 
 void signal_callback_handler(int signum) {
    cout << "finalizando..." <<  endl;
    cout << "codigo: " << signum << endl;
-   // Terminate program 
+   // se activa variable de finalizacion
    FINISH_FLAG = 1;
 }
 
 int accept(ALSP_representation ALSP, vector<PlaneCandidate> evaluating_solution, int best_solution_val) {
+    /*
+    *   Si todos los aviones ya han sido instanciados
+    *   se evalua su costo  
+    *   retorna candidate_cost si el costo es optimo, si no retorna -1
+    */
     int candidate_cost = 0;
     if (evaluating_solution.size() == ALSP.planes_qty) {
         for (unsigned int i = 0; i < evaluating_solution.size(); i++)  {
@@ -54,17 +59,13 @@ int accept(ALSP_representation ALSP, vector<PlaneCandidate> evaluating_solution,
     return -1;
 }
 
-bool ComparePlanesTime(PlaneCandidate p1, PlaneCandidate p2) {
-    return (p1.time < p2.time);
-}
-
-
-bool ComparePlanes(PlaneCandidate p1, PlaneCandidate p2) {
-  return (p1.plane < p2.plane);
-}
-
 
 void Finish(vector<PlaneCandidate> solution, ALSP_representation ALSP, int cost) {
+    /*
+    *   al llamar genera el archivo solucion_n.txt
+    *   toma la solucion mas optima encontrada actualmente y
+    *   la imprime
+    */
     string delimiter = ".";
     cout << ALSP.file_name << "\n";
     string token = ALSP.file_name.substr(0, ALSP.file_name.find(delimiter));
@@ -74,7 +75,6 @@ void Finish(vector<PlaneCandidate> solution, ALSP_representation ALSP, int cost)
     solution_name.push_back(value);
     solution_name.append(".txt");
     ofstream MyFile(solution_name);
-    sort(solution.begin(), solution.end(), ComparePlanes);
     MyFile << "Costo " << cost << "\n";\
     MyFile << "Tiempo total de ejecución " << (double)(clock() - tStart)/CLOCKS_PER_SEC << "[s]\n";
     for(unsigned int i = 0; i < solution.size(); i ++) {
@@ -87,45 +87,47 @@ void Finish(vector<PlaneCandidate> solution, ALSP_representation ALSP, int cost)
 
 vector<PlaneCandidate> Solve(ALSP_representation ALSP) {
     /*
-        Recibe una matriz de dominio y una de la separacion minima entre los aviones.
-        Las filas representan los valores del avion i
-        En el caso de los dominios, las columnas son los dominios
-        En el caso de la matrix de separacion las columnas es que tan separado debe estar de
-        el avion j(columna).
-
-        Realiza back tracking para resolver el problema ALSP.
+    *   Recibe una abstraccion del problema ALSP y retorna su solucion,
+    *   si se usa CTRL + C y aun esta corriendo toma la solucion optima
+    *   encontrada hasta ahora y la retorna mediante finish al archivo
+    *   correspondiente
+    *   Realiza back tracking para resolver el problema ALSP.
     */
+
+    // inicializacion de variables
     vector<PlaneCandidate> solution;
     int best_solution_val = numeric_limits<int>::max();
     vector<PlaneCandidate> evaluating_solution;
     int domain_pointer = 0;
-    int saltos = 0;
     int s;
     vector<bool> touched_optimal(ALSP.planes_qty, false);
     set<int> conflicts;
+
+    // espero CTRL + C
     signal(SIGINT, signal_callback_handler);
+
+    // mientras pueda seguir instanciando y no han dado CTRL + C...
     while (domain_pointer != -1 && FINISH_FLAG == 0) {
+        // revisamos que solucion que hayamos encontrada es optima
         s = accept(ALSP, evaluating_solution, best_solution_val);
         if (s != -1) {
             best_solution_val = s;
             solution = evaluating_solution;
-            cout << "encontré solución \n";
-            for (unsigned int i = 0; i < evaluating_solution.size(); i++) cout << evaluating_solution[i].plane << " ";
-            cout << "\n";
-            for (unsigned int i = 0; i < evaluating_solution.size(); i++) cout << evaluating_solution[i].time << " ";
-            cout << "\n";
-            cout << "Valor mejor sol actual " << best_solution_val << " Saltos " << saltos << "\n";
         }
+        // backtracking, inicializacion de variable que instancia nuevo avion
+        // y el valor en el que debe ser instanciado
         int variable_pointer = evaluating_solution.size();
         int domain_value = ALSP.planes_earliest_t[variable_pointer] + domain_pointer;
+        // si me quedan variables por instanciar y el valor de la variable actual
+        // es menor al limite del dominio
         if (
             evaluating_solution.size() < ALSP.planes_qty
             && domain_value <= ALSP.planes_latest_t[variable_pointer]
         ) {
-            // si no, instanciamos
+            // instanciamos nueva variable para solucion
             PlaneCandidate new_plane = {variable_pointer, domain_value, domain_pointer};
             bool found_conflict = false;
-
+            // buscamos que cumpla restricciones con otros aviones
             for (unsigned int i = 0; i < evaluating_solution.size(); i++) {
                 float separation_restriction;
                 if (new_plane.time > evaluating_solution[i].time) {
@@ -134,12 +136,15 @@ vector<PlaneCandidate> Solve(ALSP_representation ALSP) {
                     separation_restriction = ALSP.planes_separation_matrix[new_plane.plane][evaluating_solution[i].plane];
                 }
                 if (abs(new_plane.time - evaluating_solution[i].time) < separation_restriction) {
+                    // si no cumplo, pues hay conflicto, dado que se revisa en orden
+                    // evidentemente es la variable mas prematura y anhado a conflictos
                     conflicts.insert(evaluating_solution[i].plane);
                     found_conflict = true;
                     domain_pointer++;
                     break;
                 }
             }
+            // si no encontre conflicto puedo seguir, limpio los conflictos dado que si pude instanciar
             if (!found_conflict) {
                 if (new_plane.time == ALSP.planes_ideal_t[new_plane.plane]) touched_optimal[new_plane.plane] = true;
                 evaluating_solution.push_back(new_plane);
@@ -149,10 +154,11 @@ vector<PlaneCandidate> Solve(ALSP_representation ALSP) {
         }
         else {                
             int jumps = 0;
-            // si tenemos toque optimo
+            // si tenemos toque optimo guardamos saltos para heuristica
             if (evaluating_solution.size() == ALSP.planes_qty) {
                 for (unsigned int i = touched_optimal.size() - 1; i != 0; i --) {
                     if (!touched_optimal[i]) {
+                        if(evaluating_solution[i].time > ALSP.planes_ideal_t[i]) jumps ++;
                         break;
                     }
                     jumps ++; 
@@ -160,12 +166,11 @@ vector<PlaneCandidate> Solve(ALSP_representation ALSP) {
                 fill(touched_optimal.begin(), touched_optimal.end(), false);
             }
 
-            // si no tenemos opciones volvemos atras
+            // si saltamos hacia atras y no quedan variables por instanciar
+            // significa que ya recorri todo el arbol, por ende se termina el loop
             if (evaluating_solution.size() == 0){
                 break;
             }
-            // reordenamos al nivel de instanciacion
-            saltos++;
             // si hay conflictos hacemos CBJ, sacamos la instancia de conflicto
             // mas reciente y borramos
             if(!conflicts.empty() && true) {
@@ -178,7 +183,13 @@ vector<PlaneCandidate> Solve(ALSP_representation ALSP) {
                     evaluating_solution.pop_back();
                 }
             }
-            else {  
+            // si no, estamos en el caso que tengo una solucion completa
+            // pero debo seguir buscando soluciones para el optimo
+            // por ende o reinstanciamos al siguiente valor, o vamos atras
+            // o puede darse el caso de la heuristica
+            else {
+                    // si se puede usar la heuristica
+                    // usamos la heuristica para evitar instancia inutil
                     if (jumps > 0) {
                         for(int i = 0; i < jumps; i++) {
                             PlaneCandidate last_plane = evaluating_solution.back();
@@ -186,6 +197,9 @@ vector<PlaneCandidate> Solve(ALSP_representation ALSP) {
                             evaluating_solution.pop_back();
                         }
                     }
+                    // dado que salta n - 1 veces, nos evitamos un else
+                    // asi que este implica el salto final de la heuristica o,
+                    // es solo la reinstanciacion / volver atras
                     PlaneCandidate last_plane = evaluating_solution.back();
                     domain_pointer = last_plane.domain_pointer + 1;
                     evaluating_solution.pop_back();
@@ -193,7 +207,6 @@ vector<PlaneCandidate> Solve(ALSP_representation ALSP) {
         }
     }
     Finish(solution, ALSP, best_solution_val);
-    cout << "Saltos = " << saltos << "\n";
     return solution;
 }
 
@@ -203,12 +216,14 @@ int main(int argc, char *argv[]) {
     (void)argc;
     int planes_qty;
     cin >> planes_qty;
+    // instancio variables para leer
     vector<int> planes_earliest_t(planes_qty);
     vector<int> planes_ideal_t(planes_qty);
     vector<int> planes_latest_t(planes_qty);
     vector<float> planes_early_penalty(planes_qty);
     vector<float> planes_late_penalty(planes_qty);
     float** planes_separation_matrix = new float*[planes_qty];
+    // leo las variables
     for (int i = 0; i < planes_qty; i ++) {
         cin >> planes_earliest_t[i];
         cin >> planes_ideal_t[i];
@@ -218,14 +233,8 @@ int main(int argc, char *argv[]) {
         planes_separation_matrix[i] = new float[planes_qty];
         for (int j = 0; j < planes_qty; j++)
             cin >> planes_separation_matrix[i][j];
-        cout << planes_earliest_t[i] << " " << planes_ideal_t[i] << " ";
-        cout << planes_latest_t[i] << " " << planes_early_penalty[i] << " ";
-        cout << planes_late_penalty[i] << "\n";
-        for (int j = 0; j < planes_qty; j++)
-            cout << planes_separation_matrix[i][j] << " ";
-        cout << "\n";
     }
-
+    // genero abstraccion del problema
     ALSP_representation ALSP;
     ALSP.planes_qty = planes_qty;
     ALSP.planes_earliest_t = planes_earliest_t;
@@ -235,15 +244,9 @@ int main(int argc, char *argv[]) {
     ALSP.planes_late_penalty = planes_late_penalty;
     ALSP.planes_separation_matrix = planes_separation_matrix;
     ALSP.file_name = argv[1];
-    cout << ALSP.planes_qty << "\n";
-    for(unsigned int i = 0; i < ALSP.planes_qty; i++) {
-      for(unsigned int j = 0; j < ALSP.planes_qty; j ++) cout << ALSP.planes_separation_matrix[i][j] << " ";
-      cout << "\n";
-    }
     // algoritmo
     vector<PlaneCandidate> solution = Solve(ALSP);
     for(unsigned int j = 0; j < solution.size(); j++) cout << solution[j].time << ' ';
-    cout << "\n";
     // limpiar heap
     for (int i = 0; i < planes_qty; i++)
         delete [] planes_separation_matrix[i];

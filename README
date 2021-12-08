@@ -1,0 +1,17 @@
+para compilar
+
+```
+make build
+```
+
+para ejecutar
+
+```
+make run file=<ruta de archivo>
+```
+
+la salida genera un archivo de extension .txt de tipo solucion_<n>.txt
+para el archivo airland<n>.txt.
+
+Dado que se usa una técnica de solución completa, esperar un tiempo y ejecutar CTRL + C,
+esto generara el archivo de todas maneras con la solución completa recientemente encontrada.
